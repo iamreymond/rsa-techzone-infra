@@ -1,0 +1,172 @@
+# AWS Infrastructure Project – Phase 1: Comprehensive Implementation Guide (RSA TechZone)
+
+---
+
+## Project Overview
+**Company:** RSA TechZone  
+**Objective:** Migrate a monolithic web application from a single VPS to a secure, scalable AWS production environment using a standard 3-tier architecture.
+
+## Methodology & Approach
+- **Standard:** AWS Well-Architected Framework
+- **Architecture Type:** 3-tier (Web, App, DB)
+- **Deployment:** Manual (No Terraform)
+- **Goal:** Complete production-grade implementation
+
+---
+
+## Services Used
+- **Amazon VPC** – Custom networking (Subnets, Route Tables, IGW, NAT)
+- **EC2** – Bastion Host, Web Servers (Apache)
+- **RDS (MySQL)** – Managed relational database
+- **IAM** – Roles, Users, Policies
+- **Application Load Balancer (ALB)** – For high availability
+- **Auto Scaling Group (ASG)** – Dynamic scaling
+- **Route 53** – DNS configuration (linked to GoDaddy)
+- **AWS Certificate Manager (ACM)** – HTTPS with SSL
+- **CloudWatch** – Logs and system metrics
+- **S3** – Logs and backup storage
+- **Security Groups & NACLs** – Strict network access
+- **Bash scripts** – Automation for provisioning
+
+---
+
+## Project Folder Hierarchy
+```
+rsa-techzone-infra/
+├── docs/
+│   ├── architecture-diagram.png
+│   └── implementation-guide.txt
+├── scripts/
+│   ├── apache-install.sh
+│   ├── cloudwatch-install.sh
+│   └── rds-connection-test.sh
+├── images/
+│   └── screenshots.png
+├── README.md
+└── .gitignore
+```
+
+---
+
+## PHASE 1: Implementation Guide (Step-by-Step)
+
+### 1. Git Repository Setup
+```bash
+git init rsa-techzone-infra
+cd rsa-techzone-infra
+git remote add origin git@github.com:username/rsa-techzone-infra.git
+```
+Create folders `/docs`, `/scripts`, `/images`. Add project overview and push to GitHub.
+
+### 2. VPC Setup
+- VPC CIDR: `10.0.0.0/16`
+- Create 2 public subnets: `10.0.1.0/24`, `10.0.2.0/24`
+- Create 2 private subnets: `10.0.3.0/24`, `10.0.4.0/24`
+- Internet Gateway: Attach to VPC
+- NAT Gateway: Launch in Public Subnet A
+- Route Tables:
+  - Public → IGW (0.0.0.0/0)
+  - Private → NAT Gateway (0.0.0.0/0)
+
+### 3. IAM Configuration
+- **Group:** `RSAAdmins`, attach `AdministratorAccess`
+- **User:** `rsatechzone-admin`, enable MFA, add to group
+- **Role:** `EC2WebServerRole`, attach `CloudWatchAgentServerPolicy`
+
+### 4. Bastion Host (Public EC2)
+- AMI: Amazon Linux 2
+- Instance Type: `t3.micro`
+- Subnet: Public (10.0.1.0/24)
+- SG: Allow SSH from your IP
+- Create key pair `rsa-bastion-key.pem`
+
+### 5. Web Server (Private EC2)
+- AMI: Amazon Linux 2
+- Subnet: Private (10.0.3.0/24)
+- Attach IAM Role: `EC2WebServerRole`
+- SG: Allow SSH/HTTP only from Bastion
+- Install Apache:
+```bash
+sudo yum update -y
+sudo yum install httpd -y
+sudo systemctl start httpd
+sudo systemctl enable httpd
+```
+
+### 6. RDS MySQL Setup
+- DB Instance: Multi-AZ, `t3.micro`
+- DB Name: `rsadb`, Master: `admin`, Password: `SecurePassword123!`
+- Subnet Group: Private subnets
+- SG: Allow port 3306 from Web Server SG
+- Test from EC2:
+```bash
+mysql -h <RDS-endpoint> -u admin -p
+```
+
+### 7. Load Balancer + Auto Scaling
+- **Target Group:** Protocol HTTP, Port 80
+- **ALB:** Public subnets (10.0.1.0/24, 10.0.2.0/24)
+- **SG:** Allow HTTP 80/443 from anywhere
+- **Launch Template:** AMI + UserData (install Apache)
+- **ASG:** Min: 2, Max: 4, attach to Target Group
+
+### 8. HTTPS + ACM
+- Request Certificate: `www.rsatechzone.com`
+- Validate via DNS (add to Route 53 or GoDaddy)
+- ALB → HTTPS Listener (443), attach cert
+- Add HTTP Listener → Redirect to HTTPS
+
+### 9. Route 53 & Domain
+- Register/buy domain on GoDaddy
+- Create Route 53 Hosted Zone: `rsatechzone.com`
+- Point GoDaddy nameservers to Route 53
+- Create A record → Alias to ALB DNS
+
+### 10. CloudWatch Monitoring
+Install agent:
+```bash
+sudo yum install amazon-cloudwatch-agent -y
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
+```
+Configure logs:
+- `/var/log/httpd/access_log`
+- `/var/log/httpd/error_log`
+- `/var/log/messages`, `/var/log/secure`
+Start agent:
+```bash
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent.json -s
+```
+
+### 11. S3 (Logs / Backup)
+- Create S3 Bucket: `rsa-techzone-logs`
+- Enable versioning, server-side encryption
+- Upload Apache logs manually from EC2 (or via cron)
+
+### 12. Testing & Validation
+- Open browser: `https://www.rsatechzone.com` → Page loads
+- SSH to Bastion → SSH to Web Server
+- MySQL test connection from Web Server
+- Load test ALB to check ASG scaling
+- Logs visible in CloudWatch
+- Verify DNS resolution, HTTPS cert
+
+---
+
+## Documentation Checklist
+- [x] GitHub Repo with `/docs` and `/scripts`
+- [x] Architecture diagram PNG
+- [x] Screenshots of each major step
+- [x] Final `README.md`
+- [x] Implementation Guide (`implementation-guide.txt`)
+
+---
+
+## ✅ Project Completion Summary
+You’ve now completed a full **production-grade**, **secure**, and **scalable** infrastructure on AWS for RSA TechZone using only **Phase 1** tools and services — built from scratch, manually, with real-world practices.
+
+---
+
+> **Next (if desired):** Automate this entire setup using Infrastructure as Code (Terraform) — **only after mastering manual deployment.**
+
+**End of Guide.**
+
